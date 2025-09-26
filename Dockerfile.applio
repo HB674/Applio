@@ -1,0 +1,48 @@
+# Dockerfile.applio
+FROM nvidia/cuda:12.1.0-cudnn8-runtime-ubuntu22.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV LANG=C.UTF-8 LC_ALL=C.UTF-8
+ENV PYTHONUNBUFFERED=1
+ENV PIP_NO_CACHE_DIR=1
+
+# 필수 패키지 설치
+# - ffmpeg: 오디오 처리
+# - libsndfile1: soundfile 라이브러리 의존
+# - libgl1: OpenCV import 에 종종 필요
+# - git, build-essential: 일부 파이썬 빌드/설치 시 필요
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3.10 python3.10-dev python3-pip \
+    ffmpeg libsndfile1 libgl1 \
+    git build-essential nano \
+ && rm -rf /var/lib/apt/lists/* \
+ && python3 -m pip install --upgrade pip==23.3.2
+
+WORKDIR /app
+
+# (선택) requirements 먼저 복사해서 캐시 활용
+COPY requirements.txt /app/requirements.txt
+
+# FastAPI/서버 런타임 기본 패키지
+RUN python3 -m pip install --no-cache-dir fastapi uvicorn python-multipart pydantic
+
+# PyTorch (CUDA 12.1용 채널)
+# 1) 토치 먼저 깔고
+RUN python3 -m pip install --no-cache-dir \
+    torch torchvision torchaudio \
+    --index-url https://download.pytorch.org/whl/cu121
+
+# 2) 프로젝트 나머지 의존성 설치
+#    (requirements.txt가 있다면 거기서 추가 설치)
+RUN if [ -f "/app/requirements.txt" ]; then \
+      python3 -m pip install --no-cache-dir -r /app/requirements.txt ; \
+    fi
+
+# 프로젝트 소스 복사
+COPY . /app
+
+# (선택) 모델/로그 경로는 볼륨으로 마운트할 예정이면 굳이 이미지에 넣지 않음
+
+EXPOSE 8001
+# applio_api_server.py 파일 안의 FastAPI 인스턴스(app)를 띄움
+CMD ["python3", "-m", "uvicorn", "applio_api_server:app", "--host", "0.0.0.0", "--port", "8001"]
