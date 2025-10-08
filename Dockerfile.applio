@@ -1,3 +1,5 @@
+applio dockerfile 수정함
+
 # Dockerfile.applio
 FROM nvidia/cuda:12.1.0-cudnn8-runtime-ubuntu22.04
 
@@ -14,7 +16,7 @@ ENV PIP_NO_CACHE_DIR=1
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3.10 python3.10-dev python3-pip \
     ffmpeg libsndfile1 libgl1 \
-    git build-essential nano \
+    git build-essential nano wget curl \
  && rm -rf /var/lib/apt/lists/* \
  && python3 -m pip install --upgrade pip==23.3.2
 
@@ -40,6 +42,13 @@ RUN if [ -f "/app/requirements.txt" ]; then \
 
 # 프로젝트 소스 복사
 COPY . /app
+
+RUN python3 -c "from rvc.lib.tools.prerequisites_download import prequisites_download_pipeline as p; p(True, True, False)" \
+ && mkdir -p rvc/models/embedders/korean_hubert_base \
+ && wget -O rvc/models/embedders/korean_hubert_base/config.json \
+      'https://huggingface.co/IAHispano/Applio/resolve/main/Resources/embedders/korean_hubert_base/config.json' \
+ && wget -O rvc/models/embedders/korean_hubert_base/pytorch_model.bin \
+      'https://huggingface.co/IAHispano/Applio/resolve/main/Resources/embedders/korean_hubert_base/pytorch_model.bin'
 
 # (선택) 모델/로그 경로는 볼륨으로 마운트할 예정이면 굳이 이미지에 넣지 않음
 
